@@ -1,0 +1,499 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>公園デジタル台帳システム - 公園台帳モジュール</title>
+  <!-- Tailwind CSS (CDN) -->
+  <script src="https://cdn.tailwindcss.com"></script>
+  <!-- Lucide Icons -->
+  <script src="https://unpkg.com/lucide@latest"></script>
+  <style>
+    @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Noto+Sans+JP:wght@400;500;700&display=swap');
+    body { font-family: 'Noto Sans JP', 'Inter', sans-serif; }
+  </style>
+</head>
+<body class="bg-slate-100 text-slate-800 antialiased min-h-screen flex flex-col">
+
+  <!-- ヘッダー -->
+  <header class="bg-emerald-800 text-white shadow-md border-b border-emerald-900 sticky top-0 z-50">
+    <div class="max-w-7xl mx-auto px-4 py-3 flex items-center justify-between">
+      <div class="flex items-center space-x-3">
+        <i data-lucide="trees" class="w-7 h-7 text-emerald-300"></i>
+        <div>
+          <h1 class="text-xl font-bold tracking-wide">公園デジタル台帳システム</h1>
+          <p class="text-xs text-emerald-200">内部DX基盤 ＞ 都市公園台帳管理</p>
+        </div>
+      </div>
+      <div class="flex items-center space-x-2 text-xs bg-emerald-900/60 px-3 py-1.5 rounded-full border border-emerald-700/50">
+        <span class="w-2.5 h-2.5 rounded-full bg-emerald-400 animate-pulse"></span>
+        <span>ステータス: 稼働中 (ローカル保存)</span>
+      </div>
+    </div>
+  </header>
+
+  <!-- メインコンテンツ -->
+  <main class="flex-1 max-w-7xl w-full mx-auto p-4 sm:p-6 grid grid-cols-1 lg:grid-cols-12 gap-6">
+
+    <!-- 左側：公園選択・検索パネル (lg:col-span-4) -->
+    <section class="lg:col-span-4 bg-white rounded-xl shadow-sm border border-slate-200 p-4 flex flex-col h-fit">
+      <div class="flex items-center justify-between pb-3 mb-4 border-b border-slate-100">
+        <h2 class="font-bold text-slate-700 flex items-center gap-2">
+          <i data-lucide="search" class="w-4 h-4 text-emerald-600"></i>
+          公園選択・検索
+        </h2>
+        <button onclick="openModal()" class="inline-flex items-center gap-1 text-xs bg-emerald-600 hover:bg-emerald-700 text-white font-medium px-2.5 py-1.5 rounded-lg transition">
+          <i data-lucide="plus" class="w-3.5 h-3.5"></i>
+          新規公園追加
+        </button>
+      </div>
+
+      <!-- フィルター・ソートコントロール -->
+      <div class="space-y-3 mb-4">
+        <div>
+          <label class="text-xs font-semibold text-slate-500 mb-1 block">並び順（ソート）</label>
+          <select id="sortSelect" onchange="renderParkList()" class="w-full text-sm bg-slate-50 border border-slate-300 rounded-lg p-2 focus:ring-2 focus:ring-emerald-500 focus:outline-none">
+            <option value="kana-asc">名称順（あいうえお順）</option>
+            <option value="area-desc">敷地面積が広い順</option>
+            <option value="area-asc">敷地面積が狭い順</option>
+            <option value="date-asc">設置年月日が古い順（開設順）</option>
+            <option value="date-desc">設置年月日が新しい順</option>
+          </select>
+        </div>
+
+        <div>
+          <label class="text-xs font-semibold text-slate-500 mb-1 block">公園プルダウン選択</label>
+          <select id="parkDropdown" onchange="selectParkFromDropdown(this.value)" class="w-full text-sm bg-emerald-50 font-medium text-emerald-900 border border-emerald-300 rounded-lg p-2 focus:ring-2 focus:ring-emerald-500 focus:outline-none">
+            <!-- JavaScriptで動的生成 -->
+          </select>
+        </div>
+
+        <div class="relative">
+          <input type="text" id="searchInput" oninput="renderParkList()" placeholder="公園名や所在地でフリー検索..." class="w-full text-sm pl-9 pr-3 py-2 bg-slate-50 border border-slate-300 rounded-lg focus:ring-2 focus:ring-emerald-500 focus:outline-none">
+          <i data-lucide="search" class="w-4 h-4 text-slate-400 absolute left-3 top-2.5"></i>
+        </div>
+      </div>
+
+      <!-- 公園カードリスト -->
+      <div class="space-y-2 max-h-[500px] overflow-y-auto pr-1" id="parkListContainer">
+        <!-- JavaScriptで動的生成 -->
+      </div>
+    </section>
+
+    <!-- 右側：都市公園台帳 詳細表示パネル (lg:col-span-8) -->
+    <section class="lg:col-span-8 bg-white rounded-xl shadow-sm border border-slate-200 p-6 flex flex-col justify-between" id="detailSection">
+      <!-- 詳細データはJavaScriptで動的描画 -->
+    </section>
+
+  </main>
+
+  <!-- 公園新規登録・編集モーダルダイアログ -->
+  <div id="parkModal" class="fixed inset-0 bg-slate-900/50 backdrop-blur-sm hidden items-center justify-center z-50 p-4">
+    <div class="bg-white rounded-xl shadow-2xl border border-slate-200 max-w-2xl w-full max-h-[90vh] overflow-y-auto p-6">
+      <div class="flex justify-between items-center pb-3 border-b border-slate-200 mb-4">
+        <h3 class="text-lg font-bold text-slate-800" id="modalTitle">都市公園台帳の追加</h3>
+        <button onclick="closeModal()" class="text-slate-400 hover:text-slate-600">
+          <i data-lucide="x" class="w-6 h-6"></i>
+        </button>
+      </div>
+
+      <form id="parkForm" onsubmit="handleFormSubmit(event)" class="space-y-4">
+        <input type="hidden" id="editParkId">
+
+        <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
+          <div>
+            <label class="block text-xs font-bold text-slate-700 mb-1">公園名称 <span class="text-red-500">*</span></label>
+            <input type="text" id="inputName" required placeholder="例: さくら中央公園" class="w-full text-sm border border-slate-300 rounded-lg p-2 focus:ring-2 focus:ring-emerald-500 outline-none">
+          </div>
+          <div>
+            <label class="block text-xs font-bold text-slate-700 mb-1">フリガナ（五十音順用） <span class="text-red-500">*</span></label>
+            <input type="text" id="inputKana" required placeholder="例: サクラチュウオウコウエン" class="w-full text-sm border border-slate-300 rounded-lg p-2 focus:ring-2 focus:ring-emerald-500 outline-none">
+          </div>
+        </div>
+
+        <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
+          <div>
+            <label class="block text-xs font-bold text-slate-700 mb-1">公園種別</label>
+            <select id="inputType" class="w-full text-sm border border-slate-300 rounded-lg p-2 focus:ring-2 focus:ring-emerald-500 outline-none">
+              <option value="街区公園">街区公園</option>
+              <option value="近隣公園">近隣公園</option>
+              <option value="地区公園">地区公園</option>
+              <option value="総合公園">総合公園</option>
+              <option value="運動公園">運動公園</option>
+              <option value="特殊公園">特殊公園</option>
+            </select>
+          </div>
+          <div>
+            <label class="block text-xs font-bold text-slate-700 mb-1">設置年月日（供用開始日）</label>
+            <input type="date" id="inputEstDate" class="w-full text-sm border border-slate-300 rounded-lg p-2 focus:ring-2 focus:ring-emerald-500 outline-none">
+          </div>
+        </div>
+
+        <div>
+          <label class="block text-xs font-bold text-slate-700 mb-1">所在地</label>
+          <input type="text" id="inputAddress" placeholder="例: ○○市緑区桜町1-2-3" class="w-full text-sm border border-slate-300 rounded-lg p-2 focus:ring-2 focus:ring-emerald-500 outline-none">
+        </div>
+
+        <div class="grid grid-cols-1 sm:grid-cols-3 gap-4">
+          <div>
+            <label class="block text-xs font-bold text-slate-700 mb-1">敷地面積 (㎡)</label>
+            <input type="number" step="0.01" id="inputArea" placeholder="1500" class="w-full text-sm border border-slate-300 rounded-lg p-2 focus:ring-2 focus:ring-emerald-500 outline-none">
+          </div>
+          <div>
+            <label class="block text-xs font-bold text-slate-700 mb-1">緯度 (Latitude)</label>
+            <input type="number" step="0.000001" id="inputLat" placeholder="35.123456" class="w-full text-sm border border-slate-300 rounded-lg p-2 focus:ring-2 focus:ring-emerald-500 outline-none">
+          </div>
+          <div>
+            <label class="block text-xs font-bold text-slate-700 mb-1">経度 (Longitude)</label>
+            <input type="number" step="0.000001" id="inputLng" placeholder="136.987654" class="w-full text-sm border border-slate-300 rounded-lg p-2 focus:ring-2 focus:ring-emerald-500 outline-none">
+          </div>
+        </div>
+
+        <div>
+          <label class="block text-xs font-bold text-slate-700 mb-1">土地所有者・権利関係</label>
+          <input type="text" id="inputOwner" placeholder="例: 市有地 (100%) / 一部国有地借地" class="w-full text-sm border border-slate-300 rounded-lg p-2 focus:ring-2 focus:ring-emerald-500 outline-none">
+        </div>
+
+        <div>
+          <label class="block text-xs font-bold text-slate-700 mb-1">沿革・変遷メモ</label>
+          <textarea id="inputHistory" rows="3" placeholder="例: 昭和55年開設。平成20年に複合遊具全面改修および車椅子対応トイレへ更新。" class="w-full text-sm border border-slate-300 rounded-lg p-2 focus:ring-2 focus:ring-emerald-500 outline-none"></textarea>
+        </div>
+
+        <div class="flex justify-end space-x-2 pt-4 border-t border-slate-100">
+          <button type="button" onclick="closeModal()" class="px-4 py-2 text-sm font-medium text-slate-600 hover:bg-slate-100 rounded-lg">キャンセル</button>
+          <button type="submit" class="px-4 py-2 text-sm font-medium bg-emerald-600 hover:bg-emerald-700 text-white rounded-lg shadow-sm">保存する</button>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <script>
+    // 初期サンプルデータ (都市公園台帳の基礎データ)
+    const initialParks = [
+      {
+        id: "park-001",
+        name: "あおい中央公園",
+        kana: "アオイチユウオウコウエン",
+        type: "総合公園",
+        address: "愛知県葵市中央町1-15",
+        estDate: "1985-04-01",
+        area: 24500.00,
+        lat: 35.1802,
+        lng: 136.9066,
+        owner: "市有地 (100%)",
+        history: "昭和60年供用開始。平成15年に多目的広場整備、令和2年に防災備蓄倉庫設置。"
+      },
+      {
+        id: "park-002",
+        name: "いずみ街区公園",
+        kana: "イズミガイクコウエン",
+        type: "街区公園",
+        address: "愛知県葵市泉町2-8-5",
+        estDate: "1992-10-15",
+        area: 1200.50,
+        lat: 35.1850,
+        lng: 136.9120,
+        owner: "市有地 (100%)",
+        history: "平成4年土地区画整理事業に伴い開設。"
+      },
+      {
+        id: "park-003",
+        name: "うめつぼ緑地公園",
+        kana: "ウメツボリョクチコウエン",
+        type: "近隣公園",
+        address: "愛知県葵市梅坪町3-12",
+        estDate: "2005-06-01",
+        area: 8900.00,
+        lat: 35.1720,
+        lng: 136.8950,
+        owner: "市有地 80%、民間借地 20%",
+        history: "平成17年開設。市民ボランティア（愛護会）による樹木管理が活発。"
+      }
+    ];
+
+    // ローカルストレージの初期化・取得
+    let parks = JSON.parse(localStorage.getItem('park_ledgers')) || initialParks;
+    let selectedParkId = parks[0]?.id || null;
+
+    // 初期化処理
+    document.addEventListener("DOMContentLoaded", () => {
+      lucide.createIcons();
+      renderParkList();
+      if (selectedParkId) {
+        renderParkDetail(selectedParkId);
+      }
+    });
+
+    // データの保存
+    function saveParks() {
+      localStorage.setItem('park_ledgers', JSON.stringify(parks));
+    }
+
+    // ソート処理
+    function getSortedParks() {
+      const sortType = document.getElementById('sortSelect').value;
+      const searchKeyword = document.getElementById('searchInput').value.trim().toLowerCase();
+
+      // 検索フィルター
+      let filtered = parks.filter(p => 
+        p.name.toLowerCase().includes(searchKeyword) || 
+        p.address.toLowerCase().includes(searchKeyword) ||
+        p.kana.toLowerCase().includes(searchKeyword)
+      );
+
+      // ソート適用
+      return filtered.sort((a, b) => {
+        if (sortType === 'kana-asc') return a.kana.localeCompare(b.kana, 'ja');
+        if (sortType === 'area-desc') return b.area - a.area;
+        if (sortType === 'area-asc') return a.area - b.area;
+        if (sortType === 'date-asc') return new Date(a.estDate) - new Date(b.estDate);
+        if (sortType === 'date-desc') return new Date(b.estDate) - new Date(a.estDate);
+        return 0;
+      });
+    }
+
+    // 左側：公園リスト＆プルダウン描画
+    function renderParkList() {
+      const sortedParks = getSortedParks();
+      const listContainer = document.getElementById('parkListContainer');
+      const dropdown = document.getElementById('parkDropdown');
+
+      // プルダウン更新
+      dropdown.innerHTML = sortedParks.map(p => 
+        `<option value="${p.id}" ${p.id === selectedParkId ? 'selected' : ''}>${p.name} (${p.area.toLocaleString()}㎡)</option>`
+      ).join('');
+
+      // リスト描画
+      if (sortedParks.length === 0) {
+        listContainer.innerHTML = `<div class="text-center py-8 text-slate-400 text-sm">該当する公園が見つかりません</div>`;
+        return;
+      }
+
+      listContainer.innerHTML = sortedParks.map(p => {
+        const isSelected = p.id === selectedParkId;
+        return `
+          <div onclick="selectPark('${p.id}')" class="p-3 rounded-lg border cursor-pointer transition ${isSelected ? 'bg-emerald-50 border-emerald-500 shadow-sm' : 'bg-white border-slate-200 hover:border-slate-300 hover:bg-slate-50'}">
+            <div class="flex justify-between items-start">
+              <h3 class="font-bold text-sm text-slate-800">${p.name}</h3>
+              <span class="text-[10px] px-2 py-0.5 rounded font-medium ${isSelected ? 'bg-emerald-200 text-emerald-800' : 'bg-slate-100 text-slate-600'}">${p.type}</span>
+            </div>
+            <p class="text-xs text-slate-500 mt-1 truncate"><i data-lucide="map-pin" class="w-3 h-3 inline mr-1"></i>${p.address}</p>
+            <div class="flex justify-between items-center mt-2 text-[11px] text-slate-400">
+              <span>面積: ${p.area ? p.area.toLocaleString() + ' ㎡' : '-'}</span>
+              <span>開設: ${p.estDate || '-'}</span>
+            </div>
+          </div>
+        `;
+      }).join('');
+
+      lucide.createIcons();
+    }
+
+    // 公園選択アクション
+    function selectPark(id) {
+      selectedParkId = id;
+      renderParkList();
+      renderParkDetail(id);
+    }
+
+    function selectParkFromDropdown(id) {
+      selectPark(id);
+    }
+
+    // 右側：都市公園台帳 詳細画面描画
+    function renderParkDetail(id) {
+      const park = parks.find(p => p.id === id);
+      const detailSection = document.getElementById('detailSection');
+
+      if (!park) {
+        detailSection.innerHTML = `<div class="text-center py-12 text-slate-400">公園を選択してください</div>`;
+        return;
+      }
+
+      detailSection.innerHTML = `
+        <div>
+          <!-- ヘッダーエリア -->
+          <div class="flex flex-col sm:flex-row justify-between items-start sm:items-center pb-4 border-b border-slate-200 gap-2">
+            <div>
+              <div class="flex items-center gap-2">
+                <span class="bg-emerald-100 text-emerald-800 text-xs font-semibold px-2.5 py-0.5 rounded-full">${park.type}</span>
+                <span class="text-xs text-slate-400 font-mono">ID: ${park.id}</span>
+              </div>
+              <h2 class="text-2xl font-bold text-slate-800 mt-1">${park.name}</h2>
+              <p class="text-xs text-slate-400 font-mono">${park.kana}</p>
+            </div>
+            <div class="flex space-x-2">
+              <button onclick="openModal('${park.id}')" class="inline-flex items-center gap-1 text-xs bg-slate-100 hover:bg-slate-200 text-slate-700 font-medium px-3 py-2 rounded-lg transition border border-slate-300">
+                <i data-lucide="edit-3" class="w-3.5 h-3.5"></i>
+                編集
+              </button>
+              <button onclick="deletePark('${park.id}')" class="inline-flex items-center gap-1 text-xs bg-red-50 hover:bg-red-100 text-red-600 font-medium px-3 py-2 rounded-lg transition border border-red-200">
+                <i data-lucide="trash-2" class="w-3.5 h-3.5"></i>
+                削除
+              </button>
+            </div>
+          </div>
+
+          <!-- 都市公園台帳 規定項目グリッド -->
+          <div class="mt-6 grid grid-cols-1 md:grid-cols-2 gap-6">
+
+            <!-- 基本属性情報 -->
+            <div class="bg-slate-50 p-4 rounded-xl border border-slate-200 space-y-3">
+              <h3 class="text-xs font-bold text-slate-500 uppercase tracking-wider flex items-center gap-1.5 border-b border-slate-200 pb-2">
+                <i data-lucide="file-text" class="w-4 h-4 text-emerald-600"></i>
+                基本・土地スペック
+              </h3>
+              
+              <div class="grid grid-cols-3 text-xs">
+                <span class="text-slate-500 font-medium">所在地:</span>
+                <span class="col-span-2 font-semibold text-slate-800">${park.address || '未設定'}</span>
+              </div>
+
+              <div class="grid grid-cols-3 text-xs">
+                <span class="text-slate-500 font-medium">敷地面積:</span>
+                <span class="col-span-2 font-semibold text-slate-800">${park.area ? park.area.toLocaleString() + ' ㎡' : '未設定'}</span>
+              </div>
+
+              <div class="grid grid-cols-3 text-xs">
+                <span class="text-slate-500 font-medium">設置年月日:</span>
+                <span class="col-span-2 font-semibold text-slate-800">${park.estDate || '未設定'}</span>
+              </div>
+
+              <div class="grid grid-cols-3 text-xs">
+                <span class="text-slate-500 font-medium">土地所有者:</span>
+                <span class="col-span-2 font-semibold text-slate-800">${park.owner || '未設定'}</span>
+              </div>
+            </div>
+
+            <!-- 位置・GIS情報 -->
+            <div class="bg-slate-50 p-4 rounded-xl border border-slate-200 space-y-3">
+              <h3 class="text-xs font-bold text-slate-500 uppercase tracking-wider flex items-center gap-1.5 border-b border-slate-200 pb-2">
+                <i data-lucide="map" class="w-4 h-4 text-emerald-600"></i>
+                位置情報 (GIS連携用)
+              </h3>
+
+              <div class="grid grid-cols-3 text-xs">
+                <span class="text-slate-500 font-medium">緯度 (Latitude):</span>
+                <span class="col-span-2 font-mono text-slate-800">${park.lat || '未設定'}</span>
+              </div>
+
+              <div class="grid grid-cols-3 text-xs">
+                <span class="text-slate-500 font-medium">経度 (Longitude):</span>
+                <span class="col-span-2 font-mono text-slate-800">${park.lng || '未設定'}</span>
+              </div>
+
+              <div class="mt-3 p-3 bg-white rounded-lg border border-slate-200 text-xs text-slate-500 flex items-center gap-2">
+                <i data-lucide="info" class="w-4 h-4 text-emerald-600 flex-shrink-0"></i>
+                <span>今後、マップ連携（Leaflet/Google Map）モジュールを追加することで直接地図描画されます。</span>
+              </div>
+            </div>
+
+            <!-- 沿革・歴史メモ -->
+            <div class="md:col-span-2 bg-slate-50 p-4 rounded-xl border border-slate-200 space-y-2">
+              <h3 class="text-xs font-bold text-slate-500 uppercase tracking-wider flex items-center gap-1.5 border-b border-slate-200 pb-2">
+                <i data-lucide="history" class="w-4 h-4 text-emerald-600"></i>
+                沿革・変遷・特記事項
+              </h3>
+              <p class="text-xs text-slate-700 whitespace-pre-wrap leading-relaxed">${park.history || '沿革情報はまだ登録されていません。'}</p>
+            </div>
+
+          </div>
+        </div>
+
+        <!-- 今後他モジュール（施設台帳・苦情要望等）が接続される領域のプレースホルダー -->
+        <div class="mt-8 pt-4 border-t border-slate-200 bg-emerald-50/50 rounded-xl p-4 border border-dashed border-emerald-300">
+          <div class="flex items-center justify-between text-xs text-emerald-800">
+            <span class="font-bold flex items-center gap-1">
+              <i data-lucide="layers" class="w-4 h-4"></i>
+              関連モジュール読み込み準備完了
+            </span>
+            <span class="text-emerald-600">次回追加予定: 施設・遊具台帳 / 苦情要望履歴</span>
+          </div>
+        </div>
+      `;
+
+      lucide.createIcons();
+    }
+
+    // モーダル表示・非表示
+    function openModal(editId = null) {
+      const modal = document.getElementById('parkModal');
+      const form = document.getElementById('parkForm');
+      modal.classList.remove('hidden');
+      modal.classList.add('flex');
+
+      if (editId) {
+        document.getElementById('modalTitle').innerText = "都市公園台帳の編集";
+        const p = parks.find(x => x.id === editId);
+        document.getElementById('editParkId').value = p.id;
+        document.getElementById('inputName').value = p.name;
+        document.getElementById('inputKana').value = p.kana;
+        document.getElementById('inputType').value = p.type;
+        document.getElementById('inputEstDate').value = p.estDate || '';
+        document.getElementById('inputAddress').value = p.address || '';
+        document.getElementById('inputArea').value = p.area || '';
+        document.getElementById('inputLat').value = p.lat || '';
+        document.getElementById('inputLng').value = p.lng || '';
+        document.getElementById('inputOwner').value = p.owner || '';
+        document.getElementById('inputHistory').value = p.history || '';
+      } else {
+        document.getElementById('modalTitle').innerText = "都市公園台帳の追加";
+        form.reset();
+        document.getElementById('editParkId').value = '';
+      }
+    }
+
+    function closeModal() {
+      const modal = document.getElementById('parkModal');
+      modal.classList.add('hidden');
+      modal.classList.remove('flex');
+    }
+
+    // フォーム送信（新規追加 / 編集）
+    function handleFormSubmit(e) {
+      e.preventDefault();
+      const editId = document.getElementById('editParkId').value;
+
+      const parkData = {
+        id: editId || `park-${Date.now()}`,
+        name: document.getElementById('inputName').value,
+        kana: document.getElementById('inputKana').value,
+        type: document.getElementById('inputType').value,
+        estDate: document.getElementById('inputEstDate').value,
+        address: document.getElementById('inputAddress').value,
+        area: parseFloat(document.getElementById('inputArea').value) || 0,
+        lat: parseFloat(document.getElementById('inputLat').value) || null,
+        lng: parseFloat(document.getElementById('inputLng').value) || null,
+        owner: document.getElementById('inputOwner').value,
+        history: document.getElementById('inputHistory').value
+      };
+
+      if (editId) {
+        const idx = parks.findIndex(p => p.id === editId);
+        if (idx !== -1) parks[idx] = parkData;
+      } else {
+        parks.push(parkData);
+        selectedParkId = parkData.id;
+      }
+
+      saveParks();
+      closeModal();
+      renderParkList();
+      renderParkDetail(selectedParkId);
+    }
+
+    // 削除処理
+    function deletePark(id) {
+      if (!confirm('この公園データを台帳から削除してもよろしいですか？')) return;
+      parks = parks.filter(p => p.id !== id);
+      if (selectedParkId === id) {
+        selectedParkId = parks[0]?.id || null;
+      }
+      saveParks();
+      renderParkList();
+      if (selectedParkId) renderParkDetail(selectedParkId);
+      else document.getElementById('detailSection').innerHTML = `<div class="text-center py-12 text-slate-400">公園が登録されていません</div>`;
+    }
+  </script>
+</body>
+</html>
