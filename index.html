@@ -4,6 +4,8 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>公園デジタル台帳システム - 公園台帳モジュール</title>
+  <!-- ブラウザのタブに表示されるアイコン（ファビコン）設定 -->
+  <link rel="icon" href="icon.jpg" type="image/jpeg">
   <!-- Tailwind CSS (CDN) -->
   <script src="https://cdn.tailwindcss.com"></script>
   <!-- Lucide Icons -->
@@ -19,7 +21,8 @@
   <header class="bg-emerald-800 text-white shadow-md border-b border-emerald-900 sticky top-0 z-50">
     <div class="max-w-7xl mx-auto px-4 py-3 flex items-center justify-between">
       <div class="flex items-center space-x-3">
-        <i data-lucide="trees" class="w-7 h-7 text-emerald-300"></i>
+        <!-- 組み込んだアイコン画像を表示 (同じフォルダの icon.jpg を参照) -->
+        <img src="icon.jpg" alt="アプリアイコン" class="w-9 h-9 rounded-lg object-cover border border-emerald-600 shadow-sm">
         <div>
           <h1 class="text-xl font-bold tracking-wide">公園デジタル台帳システム</h1>
           <p class="text-xs text-emerald-200">内部DX基盤 ＞ 都市公園台帳管理</p>
