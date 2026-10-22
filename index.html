@@ -4,35 +4,47 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>公園デジタル台帳システム - 公園台帳モジュール</title>
-  <!-- ブラウザのタブに表示されるアイコン（ファビコン）設定 -->
+  <!-- アイコン設定 -->
   <link rel="icon" href="icon.jpg" type="image/jpeg">
-  <!-- iPhone / iPad（iOS）のホーム画面追加用アイコン設定 -->
   <link rel="apple-touch-icon" href="icon.jpg">
   <!-- Tailwind CSS (CDN) -->
   <script src="https://cdn.tailwindcss.com"></script>
   <!-- Lucide Icons -->
   <script src="https://unpkg.com/lucide@latest"></script>
+  <!-- Leaflet.js (地図ライブラリ) CSS & JS -->
+  <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+  <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
   <style>
     @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Noto+Sans+JP:wght@400;500;700&display=swap');
     body { font-family: 'Noto Sans JP', 'Inter', sans-serif; }
+    #map { z-index: 1; }
   </style>
 </head>
 <body class="bg-slate-100 text-slate-800 antialiased min-h-screen flex flex-col">
 
   <!-- ヘッダー -->
   <header class="bg-emerald-800 text-white shadow-md border-b border-emerald-900 sticky top-0 z-50">
-    <div class="max-w-7xl mx-auto px-4 py-3 flex items-center justify-between">
-      <div class="flex items-center space-x-3">
-        <!-- 組み込んだアイコン画像を表示 (同じフォルダの icon.jpg を参照) -->
-        <img src="icon.jpg" alt="アプリアイコン" class="w-9 h-9 rounded-lg object-cover border border-emerald-600 shadow-sm">
-        <div>
-          <h1 class="text-xl font-bold tracking-wide">公園デジタル台帳システム</h1>
-          <p class="text-xs text-emerald-200">内部DX基盤 ＞ 都市公園台帳管理</p>
+    <div class="max-w-7xl mx-auto px-4 py-3 flex flex-col sm:flex-row items-center justify-between gap-3">
+      <div class="flex items-center space-x-3 w-full sm:w-auto justify-between sm:justify-start">
+        <div class="flex items-center space-x-3">
+          <img src="icon.jpg" alt="アプリアイコン" class="w-9 h-9 rounded-lg object-cover border border-emerald-600 shadow-sm">
+          <div>
+            <h1 class="text-xl font-bold tracking-wide">公園デジタル台帳システム</h1>
+            <p class="text-xs text-emerald-200">内部DX基盤 ＞ GIS地図・公園台帳管理</p>
+          </div>
         </div>
       </div>
-      <div class="flex items-center space-x-2 text-xs bg-emerald-900/60 px-3 py-1.5 rounded-full border border-emerald-700/50">
-        <span class="w-2.5 h-2.5 rounded-full bg-emerald-400 animate-pulse"></span>
-        <span>ステータス: 稼働中 (ローカル保存)</span>
+
+      <!-- メイン表示タブ切り替え -->
+      <div class="flex items-center space-x-1 bg-emerald-900/80 p-1 rounded-lg border border-emerald-700/60 text-xs w-full sm:w-auto justify-center">
+        <button id="tabMapBtn" onclick="switchView('map')" class="flex items-center gap-1.5 px-3 py-1.5 rounded-md font-bold transition bg-emerald-600 text-white shadow-sm">
+          <i data-lucide="map" class="w-4 h-4"></i>
+          マップ表示
+        </button>
+        <button id="tabDetailBtn" onclick="switchView('detail')" class="flex items-center gap-1.5 px-3 py-1.5 rounded-md font-bold transition text-emerald-200 hover:text-white hover:bg-emerald-800">
+          <i data-lucide="file-text" class="w-4 h-4"></i>
+          台帳詳細
+        </button>
       </div>
     </div>
   </header>
@@ -80,14 +92,31 @@
       </div>
 
       <!-- 公園カードリスト -->
-      <div class="space-y-2 max-h-[500px] overflow-y-auto pr-1" id="parkListContainer">
+      <div class="space-y-2 max-h-[520px] overflow-y-auto pr-1" id="parkListContainer">
         <!-- JavaScriptで動的生成 -->
       </div>
     </section>
 
-    <!-- 右側：都市公園台帳 詳細表示パネル -->
-    <section class="lg:col-span-8 bg-white rounded-xl shadow-sm border border-slate-200 p-6 flex flex-col justify-between" id="detailSection">
-      <!-- 詳細データはJavaScriptで動的描画 -->
+    <!-- 右側：メインコンテンツ表示パネル (地図 or 台帳詳細) -->
+    <section class="lg:col-span-8 bg-white rounded-xl shadow-sm border border-slate-200 p-4 sm:p-6 flex flex-col min-h-[550px]">
+      
+      <!-- View 1: GISマップ表示エリア (起動時デフォルト) -->
+      <div id="mapViewSection" class="w-full h-full flex flex-col flex-1">
+        <div class="flex justify-between items-center pb-3 mb-3 border-b border-slate-100">
+          <h2 class="font-bold text-slate-700 flex items-center gap-2 text-sm sm:text-base">
+            <i data-lucide="map-pin" class="w-4 h-4 text-emerald-600"></i>
+            公園GISマップビュー
+          </h2>
+          <span class="text-xs text-slate-400">ピンをタップすると公園概要が表示されます</span>
+        </div>
+        <div id="map" class="w-full h-[480px] rounded-lg border border-slate-200 shadow-inner"></div>
+      </div>
+
+      <!-- View 2: 都市公園台帳 詳細表示エリア -->
+      <div id="detailViewSection" class="w-full h-full flex flex-col justify-between hidden">
+        <!-- 詳細データはJavaScriptで動的描画 -->
+      </div>
+
     </section>
 
   </main>
@@ -118,14 +147,14 @@
 
         <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
           <div>
-            <label class="block text-xs font-bold text-slate-700 mb-1">公園種別</label>
-            <select id="inputType" class="w-full text-sm border border-slate-300 rounded-lg p-2 focus:ring-2 focus:ring-emerald-500 outline-none">
-              <option value="街区公園">街区公園</option>
-              <option value="近隣公園">近隣公園</option>
-              <option value="地区公園">地区公園</option>
-              <option value="総合公園">総合公園</option>
-              <option value="運動公園">運動公園</option>
-              <option value="特殊公園">特殊公園</option>
+            <div class="flex justify-between items-center mb-1">
+              <label class="block text-xs font-bold text-slate-700">公園種別</label>
+              <button type="button" onclick="openCustomTypeModal()" class="text-[11px] text-emerald-600 hover:underline flex items-center gap-0.5">
+                <i data-lucide="settings" class="w-3 h-3"></i> 種別管理
+              </button>
+            </div>
+            <select id="inputType" onchange="checkCustomTypeSelect(this.value)" class="w-full text-sm border border-slate-300 rounded-lg p-2 focus:ring-2 focus:ring-emerald-500 outline-none">
+              <!-- JavaScriptで動的生成 -->
             </select>
           </div>
           <div>
@@ -136,7 +165,7 @@
 
         <div>
           <label class="block text-xs font-bold text-slate-700 mb-1">所在地</label>
-          <input type="text" id="inputAddress" placeholder="例: ○○市緑区桜町1-2-3" class="w-full text-sm border border-slate-300 rounded-lg p-2 focus:ring-2 focus:ring-emerald-500 outline-none">
+          <input type="text" id="inputAddress" placeholder="例: 愛知県名古屋市中区二の丸1" class="w-full text-sm border border-slate-300 rounded-lg p-2 focus:ring-2 focus:ring-emerald-500 outline-none">
         </div>
 
         <div class="grid grid-cols-1 sm:grid-cols-3 gap-4">
@@ -145,12 +174,12 @@
             <input type="number" step="0.01" id="inputArea" placeholder="1500" class="w-full text-sm border border-slate-300 rounded-lg p-2 focus:ring-2 focus:ring-emerald-500 outline-none">
           </div>
           <div>
-            <label class="block text-xs font-bold text-slate-700 mb-1">緯度 (Latitude)</label>
-            <input type="number" step="0.000001" id="inputLat" placeholder="35.123456" class="w-full text-sm border border-slate-300 rounded-lg p-2 focus:ring-2 focus:ring-emerald-500 outline-none">
+            <label class="block text-xs font-bold text-slate-700 mb-1">緯度 (Latitude) <span class="text-red-500">*</span></label>
+            <input type="number" step="0.000001" id="inputLat" required placeholder="35.1802" class="w-full text-sm border border-slate-300 rounded-lg p-2 focus:ring-2 focus:ring-emerald-500 outline-none">
           </div>
           <div>
-            <label class="block text-xs font-bold text-slate-700 mb-1">経度 (Longitude)</label>
-            <input type="number" step="0.000001" id="inputLng" placeholder="136.987654" class="w-full text-sm border border-slate-300 rounded-lg p-2 focus:ring-2 focus:ring-emerald-500 outline-none">
+            <label class="block text-xs font-bold text-slate-700 mb-1">経度 (Longitude) <span class="text-red-500">*</span></label>
+            <input type="number" step="0.000001" id="inputLng" required placeholder="136.9066" class="w-full text-sm border border-slate-300 rounded-lg p-2 focus:ring-2 focus:ring-emerald-500 outline-none">
           </div>
         </div>
 
@@ -161,7 +190,7 @@
 
         <div>
           <label class="block text-xs font-bold text-slate-700 mb-1">沿革・変遷メモ</label>
-          <textarea id="inputHistory" rows="3" placeholder="例: 昭和55年開設。平成20年に複合遊具全面改修および車椅子対応トイレへ更新。" class="w-full text-sm border border-slate-300 rounded-lg p-2 focus:ring-2 focus:ring-emerald-500 outline-none"></textarea>
+          <textarea id="inputHistory" rows="3" placeholder="例: 昭和55年開設。平成20年に複合遊具全面改修。" class="w-full text-sm border border-slate-300 rounded-lg p-2 focus:ring-2 focus:ring-emerald-500 outline-none"></textarea>
         </div>
 
         <div class="flex justify-end space-x-2 pt-4 border-t border-slate-100">
@@ -172,19 +201,104 @@
     </div>
   </div>
 
+  <!-- 自治体独自公園種別の管理モーダル -->
+  <div id="customTypeModal" class="fixed inset-0 bg-slate-900/50 backdrop-blur-sm hidden items-center justify-center z-50 p-4">
+    <div class="bg-white rounded-xl shadow-2xl border border-slate-200 max-w-md w-full p-6">
+      <div class="flex justify-between items-center pb-3 border-b border-slate-200 mb-4">
+        <h3 class="text-base font-bold text-slate-800 flex items-center gap-2">
+          <i data-lucide="plus-circle" class="w-5 h-5 text-emerald-600"></i>
+          独自公園種別の管理
+        </h3>
+        <button onclick="closeCustomTypeModal()" class="text-slate-400 hover:text-slate-600">
+          <i data-lucide="x" class="w-5 h-5"></i>
+        </button>
+      </div>
+
+      <div class="space-y-4">
+        <div>
+          <label class="block text-xs font-bold text-slate-700 mb-1">新しいオリジナル種別名を追加</label>
+          <div class="flex gap-2">
+            <input type="text" id="newCustomTypeInput" placeholder="例: 防災公園, ポケットパーク" class="flex-1 text-sm border border-slate-300 rounded-lg p-2 focus:ring-2 focus:ring-emerald-500 outline-none">
+            <button type="button" onclick="addCustomType()" class="px-3 py-2 bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-bold rounded-lg transition flex-shrink-0">追加</button>
+          </div>
+        </div>
+
+        <div>
+          <label class="block text-xs font-bold text-slate-500 mb-2">登録済みの独自種別一覧</label>
+          <div id="customTypeListContainer" class="space-y-1.5 max-h-40 overflow-y-auto pr-1">
+            <!-- JavaScriptで動的生成 -->
+          </div>
+        </div>
+      </div>
+
+      <div class="mt-6 pt-3 border-t border-slate-100 flex justify-end">
+        <button type="button" onclick="closeCustomTypeModal()" class="px-4 py-2 text-xs font-medium bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-lg">閉じる</button>
+      </div>
+    </div>
+  </div>
+
   <script>
-    // 初期サンプルデータ (都市公園台帳の基礎データ)
+    // 国土交通省の標準公園種別定義
+    const mlitParkCategories = [
+      {
+        category: "住区基幹公園",
+        types: [
+          { name: "街区公園", desc: "主として街区内に居住する者の利用に供する公園 (標準面積 0.25ha)" },
+          { name: "近隣公園", desc: "主として近隣に居住する者の利用に供する公園 (標準面積 2ha)" },
+          { name: "地区公園", desc: "主として徒歩圏内に居住する者の利用に供する公園 (標準面積 4ha)" }
+        ]
+      },
+      {
+        category: "都市基幹公園",
+        types: [
+          { name: "総合公園", desc: "都市住民全般の休息、鑑賞、散歩、運動等に供する公園 (標準面積 10〜50ha)" },
+          { name: "運動公園", desc: "都市住民全般の主として運動の用に供する公園 (標準面積 15〜75ha)" }
+        ]
+      },
+      {
+        category: "大規模公園",
+        types: [
+          { name: "広域公園", desc: "広域のレクリエーション需要を充足することを目的とする公園 (標準面積 50ha以上)" },
+          { name: "レクリエーション都市", desc: "拠点的に整備される広域的な公園" }
+        ]
+      },
+      {
+        category: "国営公園",
+        types: [
+          { name: "国営公園", desc: "国家的な記念事業等として設置される大規模な公園" }
+        ]
+      },
+      {
+        category: "特殊公園",
+        types: [
+          { name: "特殊公園", desc: "風致公園、動物公園、植物園、歴史公園、墓園等" }
+        ]
+      },
+      {
+        category: "緩衝緑地等（緑地系）",
+        types: [
+          { name: "緩衝緑地", desc: "公害・災害防止等を目的とする緑地" },
+          { name: "都市緑地", desc: "都市の自然環境の保全ならびに緑化の向上を図る緑地" },
+          { name: "緑道", desc: "災害時における避難路の確保や散策を目的とする帯状の緑地" }
+        ]
+      }
+    ];
+
+    // 自治体独自の追加種別
+    let customTypes = JSON.parse(localStorage.getItem('park_custom_types')) || ["ポケットパーク", "市民農園", "防災公園"];
+
+    // 初期サンプルデータ (緯度・経度付き)
     const initialParks = [
       {
         id: "park-001",
         name: "あおい中央公園",
         kana: "アオイチユウオウコウエン",
         type: "総合公園",
-        address: "愛知県葵市中央町1-15",
+        address: "愛知県名古屋市中区二の丸1",
         estDate: "1985-04-01",
         area: 24500.00,
-        lat: 35.1802,
-        lng: 136.9066,
+        lat: 35.1848,
+        lng: 136.9022,
         owner: "市有地 (100%)",
         history: "昭和60年供用開始。平成15年に多目的広場整備、令和2年に防災備蓄倉庫設置。"
       },
@@ -193,11 +307,11 @@
         name: "いずみ街区公園",
         kana: "イズミガイクコウエン",
         type: "街区公園",
-        address: "愛知県葵市泉町2-8-5",
+        address: "愛知県名古屋市東区泉1-8",
         estDate: "1992-10-15",
         area: 1200.50,
-        lat: 35.1850,
-        lng: 136.9120,
+        lat: 35.1762,
+        lng: 136.9095,
         owner: "市有地 (100%)",
         history: "平成4年土地区画整理事業に伴い開設。"
       },
@@ -206,24 +320,29 @@
         name: "うめつぼ緑地公園",
         kana: "ウメツボリョクチコウエン",
         type: "近隣公園",
-        address: "愛知県葵市梅坪町3-12",
+        address: "愛知県豊田市梅坪町3-12",
         estDate: "2005-06-01",
         area: 8900.00,
-        lat: 35.1720,
-        lng: 136.8950,
+        lat: 35.1015,
+        lng: 137.1580,
         owner: "市有地 80%、民間借地 20%",
         history: "平成17年開設。市民ボランティア（愛護会）による樹木管理が活発。"
       }
     ];
 
-    // ローカルストレージの初期化・取得
+    // グローバル変数
     let parks = JSON.parse(localStorage.getItem('park_ledgers')) || initialParks;
     let selectedParkId = parks[0]?.id || null;
+    let currentView = 'map'; // 'map' or 'detail'
+    let map = null;
+    let markersMap = {};
 
     // 初期化処理
     document.addEventListener("DOMContentLoaded", () => {
       lucide.createIcons();
+      populateTypeSelect();
       renderParkList();
+      initMap();
       if (selectedParkId) {
         renderParkDetail(selectedParkId);
       }
@@ -234,19 +353,203 @@
       localStorage.setItem('park_ledgers', JSON.stringify(parks));
     }
 
+    function saveCustomTypes() {
+      localStorage.setItem('park_custom_types', JSON.stringify(customTypes));
+    }
+
+    // 地図 (Leaflet.js) 初期化処理
+    function initMap() {
+      if (map) return;
+
+      // 初期中心座標 (愛知県周辺)
+      const initialLat = parks[0]?.lat || 35.1802;
+      const initialLng = parks[0]?.lng || 136.9066;
+
+      map = L.map('map').setView([initialLat, initialLng], 12);
+
+      // 国土地理院風のオープンストリートマップタイル
+      L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+        attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors'
+      }).addTo(map);
+
+      updateMapMarkers();
+    }
+
+    // 地図のピン（マーカー）の更新
+    function updateMapMarkers() {
+      if (!map) return;
+
+      // 既存マーカーの削除
+      Object.values(markersMap).forEach(m => map.removeLayer(m));
+      markersMap = {};
+
+      const sortedParks = getSortedParks();
+
+      sortedParks.forEach(p => {
+        if (p.lat && p.lng) {
+          const marker = L.marker([p.lat, p.lng]).addTo(map);
+          
+          const popupContent = `
+            <div class="p-1">
+              <span class="text-[10px] bg-emerald-100 text-emerald-800 font-bold px-1.5 py-0.5 rounded">${p.type}</span>
+              <h4 class="font-bold text-sm text-slate-800 mt-1">${p.name}</h4>
+              <p class="text-xs text-slate-500 mt-0.5">${p.address || ''}</p>
+              <p class="text-xs text-slate-500">面積: ${p.area ? p.area.toLocaleString() + ' ㎡' : '-'}</p>
+              <button onclick="focusParkDetailFromMap('${p.id}')" class="mt-2 w-full text-center text-xs bg-emerald-600 hover:bg-emerald-700 text-white font-bold py-1 px-2 rounded shadow-sm">
+                詳細台帳を見る →
+              </button>
+            </div>
+          `;
+          
+          marker.bindPopup(popupContent);
+          marker.on('click', () => {
+            selectedParkId = p.id;
+            renderParkList();
+            renderParkDetail(p.id);
+          });
+
+          markersMap[p.id] = marker;
+        }
+      });
+    }
+
+    // 地図のポップアップから詳細へジャンプ
+    function focusParkDetailFromMap(id) {
+      selectedParkId = id;
+      switchView('detail');
+      renderParkDetail(id);
+    }
+
+    // ビュー切り替え (マップ ⇔ 台帳詳細)
+    function switchView(viewName) {
+      currentView = viewName;
+      const mapViewSection = document.getElementById('mapViewSection');
+      const detailViewSection = document.getElementById('detailViewSection');
+      const tabMapBtn = document.getElementById('tabMapBtn');
+      const tabDetailBtn = document.getElementById('tabDetailBtn');
+
+      if (viewName === 'map') {
+        mapViewSection.classList.remove('hidden');
+        detailViewSection.classList.add('hidden');
+        
+        tabMapBtn.className = "flex items-center gap-1.5 px-3 py-1.5 rounded-md font-bold transition bg-emerald-600 text-white shadow-sm";
+        tabDetailBtn.className = "flex items-center gap-1.5 px-3 py-1.5 rounded-md font-bold transition text-emerald-200 hover:text-white hover:bg-emerald-800";
+
+        // 地図のリサイズ（非表示からの復帰時崩れ防止）
+        setTimeout(() => {
+          if (map) map.invalidateSize();
+        }, 100);
+
+      } else {
+        mapViewSection.classList.add('hidden');
+        detailViewSection.classList.remove('hidden');
+
+        tabDetailBtn.className = "flex items-center gap-1.5 px-3 py-1.5 rounded-md font-bold transition bg-emerald-600 text-white shadow-sm";
+        tabMapBtn.className = "flex items-center gap-1.5 px-3 py-1.5 rounded-md font-bold transition text-emerald-200 hover:text-white hover:bg-emerald-800";
+      }
+    }
+
+    // 種別プルダウン選択肢生成
+    function populateTypeSelect() {
+      const select = document.getElementById('inputType');
+      let html = '';
+
+      mlitParkCategories.forEach(cat => {
+        html += `<optgroup label="【${cat.category}】">`;
+        cat.types.forEach(t => {
+          html += `<option value="${t.name}">${t.name}</option>`;
+        });
+        html += `</optgroup>`;
+      });
+
+      if (customTypes.length > 0) {
+        html += `<optgroup label="【自治体独自区分】">`;
+        customTypes.forEach(ct => {
+          html += `<option value="${ct}">${ct}</option>`;
+        });
+        html += `</optgroup>`;
+      }
+
+      html += `<optgroup label="【操作】">`;
+      html += `<option value="__ADD_NEW_TYPE__">+ 自治体独自の種別を追加...</option>`;
+      html += `</optgroup>`;
+
+      select.innerHTML = html;
+    }
+
+    function checkCustomTypeSelect(val) {
+      if (val === '__ADD_NEW_TYPE__') {
+        openCustomTypeModal();
+        populateTypeSelect();
+      }
+    }
+
+    // 独自種別モーダル
+    function openCustomTypeModal() {
+      renderCustomTypeList();
+      document.getElementById('customTypeModal').classList.remove('hidden');
+      document.getElementById('customTypeModal').classList.add('flex');
+    }
+
+    function closeCustomTypeModal() {
+      document.getElementById('customTypeModal').classList.add('hidden');
+      document.getElementById('customTypeModal').classList.remove('flex');
+      populateTypeSelect();
+    }
+
+    function renderCustomTypeList() {
+      const container = document.getElementById('customTypeListContainer');
+      if (customTypes.length === 0) {
+        container.innerHTML = `<p class="text-xs text-slate-400 py-2">登録されている独自種別はありません</p>`;
+        return;
+      }
+
+      container.innerHTML = customTypes.map((ct, idx) => `
+        <div class="flex justify-between items-center bg-slate-50 border border-slate-200 px-2.5 py-1.5 rounded-lg text-xs">
+          <span class="font-medium text-slate-700">${ct}</span>
+          <button type="button" onclick="removeCustomType(${idx})" class="text-red-500 hover:text-red-700">
+            <i data-lucide="trash-2" class="w-3.5 h-3.5"></i>
+          </button>
+        </div>
+      `).join('');
+
+      lucide.createIcons();
+    }
+
+    function addCustomType() {
+      const input = document.getElementById('newCustomTypeInput');
+      const val = input.value.trim();
+      if (!val) return;
+
+      if (!customTypes.includes(val)) {
+        customTypes.push(val);
+        saveCustomTypes();
+        renderCustomTypeList();
+        populateTypeSelect();
+        document.getElementById('inputType').value = val;
+      }
+      input.value = '';
+    }
+
+    function removeCustomType(idx) {
+      customTypes.splice(idx, 1);
+      saveCustomTypes();
+      renderCustomTypeList();
+      populateTypeSelect();
+    }
+
     // ソート処理
     function getSortedParks() {
       const sortType = document.getElementById('sortSelect').value;
       const searchKeyword = document.getElementById('searchInput').value.trim().toLowerCase();
 
-      // 検索フィルター
       let filtered = parks.filter(p => 
         p.name.toLowerCase().includes(searchKeyword) || 
         p.address.toLowerCase().includes(searchKeyword) ||
-        p.kana.toLowerCase().includes(searchKeyword)
+        p.kana.toLowerCase().includes(searchKeyword) ||
+        p.type.toLowerCase().includes(searchKeyword)
       );
 
-      // ソート適用
       return filtered.sort((a, b) => {
         if (sortType === 'kana-asc') return a.kana.localeCompare(b.kana, 'ja');
         if (sortType === 'area-desc') return b.area - a.area;
@@ -263,12 +566,10 @@
       const listContainer = document.getElementById('parkListContainer');
       const dropdown = document.getElementById('parkDropdown');
 
-      // プルダウン更新
       dropdown.innerHTML = sortedParks.map(p => 
         `<option value="${p.id}" ${p.id === selectedParkId ? 'selected' : ''}>${p.name} (${p.area.toLocaleString()}㎡)</option>`
       ).join('');
 
-      // リスト描画
       if (sortedParks.length === 0) {
         listContainer.innerHTML = `<div class="text-center py-8 text-slate-400 text-sm">該当する公園が見つかりません</div>`;
         return;
@@ -294,11 +595,20 @@
       lucide.createIcons();
     }
 
-    // 公園選択アクション
+    // 公園選択アクション (リスト or プルダウンより)
     function selectPark(id) {
       selectedParkId = id;
       renderParkList();
       renderParkDetail(id);
+
+      // 地図の中心をその公園へズーム移動
+      const park = parks.find(p => p.id === id);
+      if (park && park.lat && park.lng && map) {
+        map.flyTo([park.lat, park.lng], 15, { duration: 1 });
+        if (markersMap[id]) {
+          markersMap[id].openPopup();
+        }
+      }
     }
 
     function selectParkFromDropdown(id) {
@@ -308,7 +618,7 @@
     // 右側：都市公園台帳 詳細画面描画
     function renderParkDetail(id) {
       const park = parks.find(p => p.id === id);
-      const detailSection = document.getElementById('detailSection');
+      const detailSection = document.getElementById('detailViewSection');
 
       if (!park) {
         detailSection.innerHTML = `<div class="text-center py-12 text-slate-400">公園を選択してください</div>`;
@@ -328,6 +638,10 @@
               <p class="text-xs text-slate-400 font-mono">${park.kana}</p>
             </div>
             <div class="flex space-x-2">
+              <button onclick="switchView('map')" class="inline-flex items-center gap-1 text-xs bg-emerald-50 hover:bg-emerald-100 text-emerald-700 font-medium px-3 py-2 rounded-lg transition border border-emerald-200">
+                <i data-lucide="map" class="w-3.5 h-3.5"></i>
+                地図で位置確認
+              </button>
               <button onclick="openModal('${park.id}')" class="inline-flex items-center gap-1 text-xs bg-slate-100 hover:bg-slate-200 text-slate-700 font-medium px-3 py-2 rounded-lg transition border border-slate-300">
                 <i data-lucide="edit-3" class="w-3.5 h-3.5"></i>
                 編集
@@ -373,8 +687,8 @@
             <!-- 位置・GIS情報 -->
             <div class="bg-slate-50 p-4 rounded-xl border border-slate-200 space-y-3">
               <h3 class="text-xs font-bold text-slate-500 uppercase tracking-wider flex items-center gap-1.5 border-b border-slate-200 pb-2">
-                <i data-lucide="map" class="w-4 h-4 text-emerald-600"></i>
-                位置情報 (GIS連携用)
+                <i data-lucide="map-pin" class="w-4 h-4 text-emerald-600"></i>
+                位置座標 (GIS座標)
               </h3>
 
               <div class="grid grid-cols-3 text-xs">
@@ -387,9 +701,12 @@
                 <span class="col-span-2 font-mono text-slate-800">${park.lng || '未設定'}</span>
               </div>
 
-              <div class="mt-3 p-3 bg-white rounded-lg border border-slate-200 text-xs text-slate-500 flex items-center gap-2">
-                <i data-lucide="info" class="w-4 h-4 text-emerald-600 flex-shrink-0"></i>
-                <span>今後、マップ連携（Leaflet/Google Map）モジュールを追加することで直接地図描画されます。</span>
+              <div class="mt-3 p-3 bg-white rounded-lg border border-slate-200 text-xs text-emerald-800 flex items-center justify-between">
+                <span class="flex items-center gap-1.5">
+                  <i data-lucide="check-circle-2" class="w-4 h-4 text-emerald-600"></i>
+                  GIS地図への描画設定済み
+                </span>
+                <button onclick="switchView('map')" class="text-[11px] underline font-bold">マップを開く</button>
               </div>
             </div>
 
@@ -405,12 +722,12 @@
           </div>
         </div>
 
-        <!-- 今後他モジュールが接続される領域のプレースホルダー -->
+        <!-- 関連モジュール領域 -->
         <div class="mt-8 pt-4 border-t border-slate-200 bg-emerald-50/50 rounded-xl p-4 border border-dashed border-emerald-300">
           <div class="flex items-center justify-between text-xs text-emerald-800">
             <span class="font-bold flex items-center gap-1">
               <i data-lucide="layers" class="w-4 h-4"></i>
-              関連モジュール読み込み準備完了
+              関連モジュール接続準備完了
             </span>
             <span class="text-emerald-600">次回追加予定: 施設・遊具台帳 / 苦情要望履歴</span>
           </div>
@@ -420,8 +737,9 @@
       lucide.createIcons();
     }
 
-    // モーダル表示・非表示
+    // モーダル処理
     function openModal(editId = null) {
+      populateTypeSelect();
       const modal = document.getElementById('parkModal');
       const form = document.getElementById('parkForm');
       modal.classList.remove('hidden');
@@ -449,12 +767,11 @@
     }
 
     function closeModal() {
-      const modal = document.getElementById('parkModal');
-      modal.classList.add('hidden');
-      modal.classList.remove('flex');
+      document.getElementById('parkModal').classList.add('hidden');
+      document.getElementById('parkModal').classList.remove('flex');
     }
 
-    // フォーム送信（新規追加 / 編集）
+    // フォーム送信
     function handleFormSubmit(e) {
       e.preventDefault();
       const editId = document.getElementById('editParkId').value;
@@ -484,7 +801,13 @@
       saveParks();
       closeModal();
       renderParkList();
+      updateMapMarkers();
       renderParkDetail(selectedParkId);
+
+      // 地図を新規追加・編集した公園へ移動
+      if (parkData.lat && parkData.lng && map) {
+        map.flyTo([parkData.lat, parkData.lng], 15);
+      }
     }
 
     // 削除処理
@@ -496,8 +819,9 @@
       }
       saveParks();
       renderParkList();
+      updateMapMarkers();
       if (selectedParkId) renderParkDetail(selectedParkId);
-      else document.getElementById('detailSection').innerHTML = `<div class="text-center py-12 text-slate-400">公園が登録されていません</div>`;
+      else document.getElementById('detailViewSection').innerHTML = `<div class="text-center py-12 text-slate-400">公園が登録されていません</div>`;
     }
   </script>
 </body>
