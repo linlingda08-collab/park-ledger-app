@@ -30,7 +30,7 @@
           <img src="icon.jpg" alt="アプリアイコン" class="w-9 h-9 rounded-lg object-cover border border-emerald-600 shadow-sm">
           <div>
             <h1 class="text-xl font-bold tracking-wide">公園デジタル台帳システム</h1>
-            <p class="text-xs text-emerald-200">内部DX基盤 ＞ GIS地図・公園台帳管理</p>
+            <p class="text-xs text-emerald-200">内部DX基盤 ＞ 高精度GIS地図・公園台帳管理</p>
           </div>
         </div>
       </div>
@@ -100,14 +100,14 @@
     <!-- 右側：メインコンテンツ表示パネル (地図 or 台帳詳細) -->
     <section class="lg:col-span-8 bg-white rounded-xl shadow-sm border border-slate-200 p-4 sm:p-6 flex flex-col min-h-[550px]">
       
-      <!-- View 1: GISマップ表示エリア (起動時デフォルト) -->
+      <!-- View 1: GISマップ表示エリア (起動時デフォルト・航空写真対応) -->
       <div id="mapViewSection" class="w-full h-full flex flex-col flex-1">
         <div class="flex justify-between items-center pb-3 mb-3 border-b border-slate-100">
           <h2 class="font-bold text-slate-700 flex items-center gap-2 text-sm sm:text-base">
             <i data-lucide="map-pin" class="w-4 h-4 text-emerald-600"></i>
-            公園GISマップビュー
+            公園GISマップビュー（航空写真・詳細拡大対応）
           </h2>
-          <span class="text-xs text-slate-400">ピンをタップすると公園概要が表示されます</span>
+          <span class="text-xs text-slate-400">右上レイヤーアイコンから地図を切替可能</span>
         </div>
         <div id="map" class="w-full h-[480px] rounded-lg border border-slate-200 shadow-inner"></div>
       </div>
@@ -287,7 +287,7 @@
     // 自治体独自の追加種別
     let customTypes = JSON.parse(localStorage.getItem('park_custom_types')) || ["ポケットパーク", "市民農園", "防災公園"];
 
-    // 初期サンプルデータ (緯度・経度付き)
+    // 初期サンプルデータ
     const initialParks = [
       {
         id: "park-001",
@@ -333,9 +333,10 @@
     // グローバル変数
     let parks = JSON.parse(localStorage.getItem('park_ledgers')) || initialParks;
     let selectedParkId = parks[0]?.id || null;
-    let currentView = 'map'; // 'map' or 'detail'
+    let currentView = 'map';
     let map = null;
     let markersMap = {};
+    let userLocationMarker = null;
 
     // 初期化処理
     document.addEventListener("DOMContentLoaded", () => {
@@ -357,29 +358,78 @@
       localStorage.setItem('park_custom_types', JSON.stringify(customTypes));
     }
 
-    // 地図 (Leaflet.js) 初期化処理
+    // 地図 (Leaflet.js) 初期化処理（航空写真・標準マップ切替＆高倍率対応）
     function initMap() {
       if (map) return;
 
-      // 初期中心座標 (愛知県周辺)
-      const initialLat = parks[0]?.lat || 35.1802;
-      const initialLng = parks[0]?.lng || 136.9066;
+      // 1. タイルレイヤーの定義 (最大ズーム21まで対応)
+      // 航空写真レイヤー (Esri World Imagery)
+      const satelliteLayer = L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}', {
+        maxZoom: 21,
+        maxNativeZoom: 19,
+        attribution: 'Tiles &copy; Esri &mdash; Source: Esri, i-cubed, USDA, USGS, AEX, GeoEye, Getmapping, Aerogrid, IGN, IGP, UPR-epg, and the GIS User Community'
+      });
 
-      map = L.map('map').setView([initialLat, initialLng], 12);
+      // 標準マップレイヤー (OpenStreetMap)
+      const standardLayer = L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+        maxZoom: 21,
+        maxNativeZoom: 19,
+        attribution: '&copy; OpenStreetMap contributors'
+      });
 
-      // 国土地理院風のオープンストリートマップタイル
-      L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
-        attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors'
-      }).addTo(map);
+      // 2. マップインスタンス作成 (デフォルトは航空写真を初期表示)
+      map = L.map('map', {
+        maxZoom: 21,
+        layers: [satelliteLayer]
+      }).setView([35.1802, 136.9066], 13);
 
+      // 3. マップ切り替えコントロールの追加
+      const baseMaps = {
+        "航空写真（詳細確認用）": satelliteLayer,
+        "標準マップ": standardLayer
+      };
+      L.control.layers(baseMaps).addTo(map);
+
+      // 公園ピンの描画
       updateMapMarkers();
+
+      // 4. アプリ起動時の現在地取得と現在地ピンの表示
+      if (navigator.geolocation) {
+        navigator.geolocation.getCurrentPosition(
+          (position) => {
+            const userLat = position.coords.latitude;
+            const userLng = position.coords.longitude;
+
+            // 現在地にズーム (遊具等の詳細が確認できるようズームレベル18に設定)
+            map.setView([userLat, userLng], 18);
+
+            // 現在地を示す専用の青いピンを作成
+            const userIcon = L.divIcon({
+              className: 'current-location-icon',
+              html: '<div style="background-color: #2563eb; width: 18px; height: 18px; border-radius: 50%; border: 3px solid #ffffff; box-shadow: 0 0 8px rgba(0,0,0,0.6); animation: pulse 2s infinite;"></div>',
+              iconSize: [18, 18],
+              iconAnchor: [9, 9]
+            });
+
+            userLocationMarker = L.marker([userLat, userLng], { icon: userIcon }).addTo(map);
+            userLocationMarker.bindPopup("<b>あなたの現在地</b>").openPopup();
+          },
+          (error) => {
+            console.log("位置情報が取得できませんでした（または許可されていません）:", error);
+            // 取得失敗時は最初の公園位置にフォーカス
+            if (parks[0] && parks[0].lat && parks[0].lng) {
+              map.setView([parks[0].lat, parks[0].lng], 16);
+            }
+          },
+          { enableHighAccuracy: true, timeout: 10000, maximumAge: 0 }
+        );
+      }
     }
 
-    // 地図のピン（マーカー）の更新
+    // 地図のピン（公園マーカー）の更新
     function updateMapMarkers() {
       if (!map) return;
 
-      // 既存マーカーの削除
       Object.values(markersMap).forEach(m => map.removeLayer(m));
       markersMap = {};
 
@@ -413,7 +463,6 @@
       });
     }
 
-    // 地図のポップアップから詳細へジャンプ
     function focusParkDetailFromMap(id) {
       selectedParkId = id;
       switchView('detail');
@@ -435,7 +484,6 @@
         tabMapBtn.className = "flex items-center gap-1.5 px-3 py-1.5 rounded-md font-bold transition bg-emerald-600 text-white shadow-sm";
         tabDetailBtn.className = "flex items-center gap-1.5 px-3 py-1.5 rounded-md font-bold transition text-emerald-200 hover:text-white hover:bg-emerald-800";
 
-        // 地図のリサイズ（非表示からの復帰時崩れ防止）
         setTimeout(() => {
           if (map) map.invalidateSize();
         }, 100);
@@ -449,7 +497,7 @@
       }
     }
 
-    // 種別プルダウン選択肢生成
+    // 種別プルダウン生成
     function populateTypeSelect() {
       const select = document.getElementById('inputType');
       let html = '';
@@ -595,16 +643,16 @@
       lucide.createIcons();
     }
 
-    // 公園選択アクション (リスト or プルダウンより)
+    // 公園選択アクション
     function selectPark(id) {
       selectedParkId = id;
       renderParkList();
       renderParkDetail(id);
 
-      // 地図の中心をその公園へズーム移動
       const park = parks.find(p => p.id === id);
       if (park && park.lat && park.lng && map) {
-        map.flyTo([park.lat, park.lng], 15, { duration: 1 });
+        // 公園を選択した際、遊具などがはっきり見えるようズーム18で拡大移動
+        map.flyTo([park.lat, park.lng], 18, { duration: 1 });
         if (markersMap[id]) {
           markersMap[id].openPopup();
         }
@@ -704,7 +752,7 @@
               <div class="mt-3 p-3 bg-white rounded-lg border border-slate-200 text-xs text-emerald-800 flex items-center justify-between">
                 <span class="flex items-center gap-1.5">
                   <i data-lucide="check-circle-2" class="w-4 h-4 text-emerald-600"></i>
-                  GIS地図への描画設定済み
+                  航空写真での詳細確認に対応
                 </span>
                 <button onclick="switchView('map')" class="text-[11px] underline font-bold">マップを開く</button>
               </div>
@@ -804,9 +852,8 @@
       updateMapMarkers();
       renderParkDetail(selectedParkId);
 
-      // 地図を新規追加・編集した公園へ移動
       if (parkData.lat && parkData.lng && map) {
-        map.flyTo([parkData.lat, parkData.lng], 15);
+        map.flyTo([parkData.lat, parkData.lng], 18);
       }
     }
 
